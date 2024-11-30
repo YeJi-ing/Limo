@@ -4,7 +4,7 @@
 흐름      : 구독 → Bird-eye View 변환 → 차선 인식 → 차선 위치 계산 → 게시(vehicle_offset은 print 출력)
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /sliding_windows/compressed
-[Class] Meter_Per_Pixel
+[Class] Calc_Vehicle_Offset
     - [Function] detect_color   : 이미지에서 노란색과 흰색 차선 추출
     - [Function] img_warp       : Bird-eye view 변환된 이미지 반환 (왜곡 보정)
     - [Function] img_binary     : 색상 추출된 이미지를 이진화 (흑백 처리)
