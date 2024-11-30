@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 '''
 요약      : 이미지를 OpenCV 형식으로 변환 후 Bird-eye view 변환 수행(원근 변환)하여 게시하는 코드
-흐름      : 구독 → 이미지 디코딩(img_CB) → Bird-eye view 변환(img_warp) → 이미지 인코딩(img_CB) → 게시(img_CB)
-Subscribe: /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
-Publish  : /bird_eye/compressed
+흐름      : 구독 → 이미지 디코딩 → Bird-eye view 변환 → 이미지 인코딩 → 게시
+[Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
+[Topic] Publish   : /bird_eye/compressed
+[Function] img_warp : Bird-eye view 변환된 이미지 반환
 '''
 import rospy
 from sensor_msgs.msg import CompressedImage
@@ -23,7 +24,7 @@ class Bird_Eye_View:
             "/camera/rgb/image_raw/compressed", CompressedImage, self.img_CB
         )
 
-    def img_warp(self, img):
+    def img_warp(self, img): # Bird-eye view 변환하는 함수
         self.img_x, self.img_y = img.shape[1], img.shape[0] # 이미지 가로, 세로 크기 추출
         # print(f'self.img_x:{self.img_x}, self.img_y:{self.img_y}')
 
