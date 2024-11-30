@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 '''
-요약      : 이미지에서 노란색과 흰색을 추출하는 코드
-흐름      : 구독 → Bird-eye View 변환 → 노란색과 흰색 추출 → 게시
+요약      : 이미지에서 노란색과 흰색 추출하고, 이진화된 이미지 출력하는 코드
+흐름      : 구독 → Bird-eye View 변환 → 노란색과 흰색 추출 → 이진화 처리 → 게시
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
-[Topic] Publish   : /blend/compressed
-[Class] Blend_Line_detect
+[Topic] Publish   : /binary/compressed
+[Class] Binary_Line
     - [Function] img_warp     : Bird-eye view 변환된 이미지 반환
-    - [Function] detect_color : 노란색과 흰색 탐지 이미지 반환
-    - [Function] img_CB
+    - [Function] detect_color : 주어진 이미지에서 노란색과 흰색을 추출
+    - [Function] img_binary   : 색상 추출된 이미지를 이진화
+    - [Function] img_CB       : 이미지 수신 후 처리 및 게시
 '''
 import rospy
 from sensor_msgs.msg import CompressedImage, Image
@@ -16,22 +17,22 @@ import numpy as np
 import cv2
 
 
-class Blend_Line_detect:
+class Binary_Line:
     def __init__(self):
         self.bridge = CvBridge()
-        rospy.init_node("blend_line_node")
-        self.pub = rospy.Publisher("/blend/compressed", CompressedImage, queue_size=10)
+        rospy.init_node("binary_line_node")
+        self.pub = rospy.Publisher("/binary/compressed", CompressedImage, queue_size=10)
         rospy.Subscriber("/camera/rgb/image_raw/compressed", CompressedImage, self.img_CB)
 
     def detect_color(self, img):
         # Convert to HSV color space
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # Define range of yellow color in HSV: 노란색 범위 지정
+        # Define range of yellow color in HSV
         yellow_lower = np.array([0, 80, 0])
         yellow_upper = np.array([45, 255, 255])
 
-        # Define range of blend color in HSV: 흰색 범위 지정
+        # Define range of blend color in HSV
         white_lower = np.array([0, 0, 200])
         white_upper = np.array([179, 64, 255])
 
@@ -42,7 +43,7 @@ class Blend_Line_detect:
         white_mask = cv2.inRange(hsv, white_lower, white_upper)
 
         # Threshold the HSV image to get blend colors
-        blend_mask = cv2.bitwise_or(yellow_mask, white_mask) # 두 마스크를 OR연산하여 노란색과 흰색 추출
+        blend_mask = cv2.bitwise_or(yellow_mask, white_mask)
         blend_color = cv2.bitwise_and(img, img, mask=blend_mask)
         return blend_color
 
@@ -79,19 +80,26 @@ class Blend_Line_detect:
         warp_img = cv2.warpPerspective(img, matrix, [self.img_x, self.img_y])
         return warp_img
 
+    def img_binary(self, blend_line):
+        bin = cv2.cvtColor(blend_line, cv2.COLOR_BGR2GRAY)
+        binary_line = np.zeros_like(bin)
+        binary_line[bin != 0] = 255
+        return binary_line
+
     def img_CB(self, data):
         img = self.bridge.compressed_imgmsg_to_cv2(data)
         warp_img = self.img_warp(img)
-        warp_blend_line = self.detect_color(warp_img)
-        blend_line_msg = self.bridge.cv2_to_compressed_imgmsg(warp_blend_line)
-        self.pub.publish(blend_line_msg)
+        blend_img = self.detect_color(warp_img)
+        binary_img = self.img_binary(blend_img)
+        binary_line_img_msg = self.bridge.cv2_to_compressed_imgmsg(binary_img)
+        self.pub.publish(binary_line_img_msg)
         cv2.namedWindow("img", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("warp_blend_line", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("binary_img", cv2.WINDOW_NORMAL)
         cv2.imshow("img", img)
-        cv2.imshow("warp_blend_line", warp_blend_line)
+        cv2.imshow("binary_img", binary_img)
         cv2.waitKey(1)
 
 
 if __name__ == "__main__":
-    blend_line_detect = Blend_Line_detect()
+    binary_lines = Binary_Line()
     rospy.spin()
