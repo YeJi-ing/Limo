@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 '''
-요약      : 슬라이딩 윈도우를 통해 차선(왼쪽, 오른쪽 차선의 2차 곡선) 인식하는 코드
+요약      : 슬라이딩 윈도우를 통해 차선 인식하는 코드
 흐름      : 구독 → Bird-eye View 변환 → 차선 인식 → 차선 위치 계산 → 게시(meter_per_pix_x, meter_per_pix_y은 print 출력)
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /sliding_windows/compressed

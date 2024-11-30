@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 '''
-요약      : 슬라이딩 윈도우를 통해 차선 인식하는 코드
+요약      : 슬라이딩 윈도우를 통해 차선(왼쪽, 오른쪽 차선의 2차 곡선) 인식하는 코드
 흐름      : 구독 → Bird-eye View 변환 → 차선 인식 → 차선 위치 계산 → 게시
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /sliding_windows/compressed
 [Class] Sliding_Window
-    - [Function] detect_color   : 이미지에서 차선 색상을 추출
+    - [Function] detect_color   : 이미지에서 노란색과 흰색 차선 색상을 추출
     - [Function] img_warp       : Bird-eye view 변환된 이미지 반환 (왜곡 보정)
-    - [Function] img_binary     : 색상 추출된 이미지를 이진화
-    - [Function] detect_nothing : 초기화
-    - [Function] window_search  : 차선 위치 추적
+    - [Function] img_binary     : 색상 추출된 이미지를 이진화 (흑백 처리)
+    - [Function] detect_nothing : 초기값 설정
+    - [Function] window_search  : 차선 탐지
     - [Function] img_CB
 '''
 import rospy

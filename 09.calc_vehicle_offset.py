@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 '''
 요약      : 슬라이딩 윈도우를 통해 차선 인식하는 코드
-흐름      : 구독 → Bird-eye View 변환 → 차선 인식 → 차선 위치 계산 → 게시(left_curve_radius, right_curve_radius은 print 출력)
+흐름      : 구독 → Bird-eye View 변환 → 차선 인식 → 차선 위치 계산 → 게시(vehicle_offset은 print 출력)
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /sliding_windows/compressed
 [Class] Meter_Per_Pixel
@@ -12,6 +12,7 @@
     - [Function] window_search  : 차선 탐지
     - [Function] meter_per_pixel: 픽셀 당 가로, 세로 거리 반환  
     - [Function] calc_curve     : 왼쪽과 오른쪽 차선의 곡률 값을 반환
+    - [Function] calc_vehicle_offset : 차선 중앙으로부터 차량의 이탈 거리를 미터 단위로 반환
     - [Function] img_CB
 '''
 import rospy
@@ -23,10 +24,10 @@ import os
 import matplotlib.pyplot as plt
 
 
-class Calc_Curvature:
+class Calc_Vehicle_Offset:
     def __init__(self):
         self.bridge = CvBridge()
-        rospy.init_node("calc_curvature_node")
+        rospy.init_node("calc_vehicle_offset_node")
         self.pub = rospy.Publisher("/sliding_windows/compressed", CompressedImage, queue_size=10)
         rospy.Subscriber("/camera/rgb/image_raw/compressed", CompressedImage, self.img_CB)
         self.nothing_flag = False
@@ -210,7 +211,6 @@ class Calc_Curvature:
             left_y = self.nothing_pixel_y
             right_x = self.nothing_pixel_right_x
             right_y = self.nothing_pixel_y
-
         else:
             if len(left_x) == 0:
                 left_x = right_x - self.img_x / 2
@@ -271,11 +271,38 @@ class Calc_Curvature:
         # Fit new polynomials to x,y in world space(meterinate)
         left_fit_cr = np.polyfit(left_y * meter_per_pix_y, left_x * meter_per_pix_x, 2)
         right_fit_cr = np.polyfit(right_y * meter_per_pix_y, right_x * meter_per_pix_x, 2)
-        # Calculate the new radius of curvature: 곡률 계산 수식 적용
+        # Calculate the new radius of curvature
         left_curve_radius = ((1 + (2 * left_fit_cr[0] * y_eval * meter_per_pix_y + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit_cr[0])
         right_curve_radius = ((1 + (2 * right_fit_cr[0] * y_eval * meter_per_pix_y + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
 
-        return left_curve_radius, right_curve_radius # 왼쪽과 오른쪽 차선의 곡률 값을 반환
+        return left_curve_radius, right_curve_radius
+
+    def calc_vehicle_offset(self, sliding_window_img, left_x, left_y, right_x, right_y):
+        # WeGo simulation상의 차선의 간격 meter을 통해 차량의 이탈정도를 구합니다.
+        # Args:
+        # sliding_window_img (_type_): _description_
+        # left_x (np.array): 왼쪽 차선 pixel x 값
+        # left_y (np.array): 왼쪽 차선 pixel y 값
+        # right_x (np.array): 오른쪽 차선 pixel x 값
+        # right_y (np.array): 오른쪽 차선 pixel y 값
+        # Returns:
+        # float: 차선 중앙으로부터 이탈정도를 확인합니다. (왼쪽 -, 오른쪽 +)
+
+        # 좌우 차선 별 2차함수 계수 추정합니다.
+        left_fit = np.polyfit(left_y, left_x, 2)
+        right_fit = np.polyfit(right_y, right_x, 2)
+
+        # Calculate vehicle center offset in pixels
+        bottom_y = sliding_window_img.shape[0] - 1
+        bottom_x_left = left_fit[0] * (bottom_y**2) + left_fit[1] * bottom_y + left_fit[2]
+        bottom_x_right = right_fit[0] * (bottom_y**2) + right_fit[1] * bottom_y + right_fit[2]
+        vehicle_offset = sliding_window_img.shape[1] / 2 - (bottom_x_left + bottom_x_right) / 2
+
+        # Convert pixel offset to meter
+        meter_per_pix_x, meter_per_pix_y = self.meter_per_pixel()
+        vehicle_offset *= meter_per_pix_x
+
+        return vehicle_offset
 
     def img_CB(self, data):
         img = self.bridge.compressed_imgmsg_to_cv2(data)
@@ -299,6 +326,7 @@ class Calc_Curvature:
         ) = self.window_search(binary_img)
         meter_per_pix_x, meter_per_pix_y = self.meter_per_pixel()
         left_curve_radius, right_curve_radius = self.calc_curve(left_x, left_y, right_x, right_y)
+        vehicle_offset = self.calc_vehicle_offset(sliding_window_img, left_x, left_y, right_x, right_y)
 
         os.system("clear")
         print(f"------------------------------")
@@ -313,6 +341,7 @@ class Calc_Curvature:
         print(f"meter_per_pix_y : {meter_per_pix_y}")
         print(f"left_curve_radius : {left_curve_radius}")
         print(f"right_curve_radius : {right_curve_radius}")
+        print(f"vehicle_offset : {vehicle_offset}")
         print(f"------------------------------")
         sliding_window_msg = self.bridge.cv2_to_compressed_imgmsg(sliding_window_img)
         self.pub.publish(sliding_window_msg)
@@ -324,5 +353,5 @@ class Calc_Curvature:
 
 
 if __name__ == "__main__":
-    calc_curvature = Calc_Curvature()
+    calc_vehicle_offset = Calc_Vehicle_Offset()
     rospy.spin()
