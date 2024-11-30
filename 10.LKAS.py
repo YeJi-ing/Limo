@@ -24,7 +24,7 @@ from time import *
     - [Function] calc_curve     : 왼쪽과 오른쪽 차선의 곡률 값을 반환
     - [Function] calc_vehicle_offset : 차선 중앙으로부터 차량의 이탈 거리를 미터 단위로 반환
     - [Function] cam_cal_steer  : 차량이 도로 중앙을 유지하도록 조향각 계산
-    - [Function] ctrl_cmd       : 속도와 회전 명령을 생성
+    - [Function] ctrl_cmd       : 속도와 회전 명령 생성
     - [Function] img_CB
 '''
 
