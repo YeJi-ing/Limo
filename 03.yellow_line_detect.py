@@ -53,9 +53,9 @@ class Yellow_Line_Detect:
                 [639, 479],
             ]
         )
-        # 아래 2 개 점 기준으로 dst 영역을 설정합니다.
+        # 아래 2 개 점 기준으로 dst 영역을 설정
         dst_offset = [round(self.img_x * 0.125), 0]
-        # offset x 값이 작아질 수록 dst box width 증가합니다.
+        # offset x 값이 작아질 수록 dst box width 증가
         dst = np.float32(
             [
                 [dst_offset[0], self.img_y],
