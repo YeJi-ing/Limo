@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 '''
-요약      : 이미지에서 흰색 선을 추출하는 코드
-흐름      : 구독 → Bird-eye View 변환 → 흰색 선 추출 → 게시
+요약      : 이미지에서 흰색을 추출하는 코드
+흐름      : 구독 → Bird-eye View 변환 → 흰색 추출 → 게시
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /white/compressed
 [Class] White_line_Detect
     - [Function] img_warp     : Bird-eye view 변환된 이미지 반환
-    - [Function] detect_color : 추출된 흰색 선 이미지 반환
+    - [Function] detect_color : 흰색 탐지 이미지 반환
     - [Function] img_CB
 '''
 import rospy
@@ -37,7 +37,7 @@ class White_line_Detect:
         cv2.imshow("white_mask", white_mask)
         white_color = cv2.bitwise_and(img, img, mask=white_mask) # 흰색 마스크를 적용하여 원본 이미지에서 흰색만 추출
         cv2.imshow("white_color", white_color)
-        return white_color # 추출된 흰색 선 이미지를 반환
+        return white_color # 추출된 흰색 탐지 이미지를 반환
 
     def img_warp(self, img): # Bird-eye view 변환하는 함수
         self.img_x, self.img_y = img.shape[1], img.shape[0]
@@ -75,9 +75,9 @@ class White_line_Detect:
     def img_CB(self, data):
         img = self.bridge.compressed_imgmsg_to_cv2(data) # 수신된 CompressedImage 메시지를 OpenCV 이미지로 디코딩
         warp_img = self.img_warp(img)                    # Bird-eye View 변환 수행
-        white_color = self.detect_color(warp_img)        # 변환된 이미지에서 흰색 선 탐지
-        white_line_img_msg = self.bridge.cv2_to_compressed_imgmsg(white_color)  # 흰색 선 이미지를 ROS 메시지로 인코딩
-        self.pub.publish(white_line_img_msg)             # 변환된 흰색 선 이미지를 ROS 토픽으로 게시
+        white_color = self.detect_color(warp_img)        # 변환된 이미지에서 흰색 탐지
+        white_line_img_msg = self.bridge.cv2_to_compressed_imgmsg(white_color)  # 흰색 탐지 이미지를 ROS 메시지로 인코딩
+        self.pub.publish(white_line_img_msg)             # 흰색 탐지 이미지를 ROS 토픽으로 게시
         
         # cv2.namedWindow("img", cv2.WINDOW_NORMAL)
         cv2.namedWindow("white_color", cv2.WINDOW_NORMAL)
