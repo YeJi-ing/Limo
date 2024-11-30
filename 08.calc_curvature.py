@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 '''
 요약      : 슬라이딩 윈도우를 통해 차선(왼쪽, 오른쪽 차선의 2차 곡선) 인식하는 코드
-흐름      : 구독 → Bird-eye View 변환 → 차선 인식 → 차선 위치 계산 → 게시(meter_per_pix_x, meter_per_pix_y은 print 출력)
+흐름      : 구독 → Bird-eye View 변환 → 차선 인식 → 차선 위치 계산 → 게시(left_curve_radius, right_curve_radius은 print 출력)
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /sliding_windows/compressed
 [Class] Meter_Per_Pixel
@@ -10,7 +10,8 @@
     - [Function] img_binary     : 색상 추출된 이미지를 이진화 (흑백 처리)
     - [Function] detect_nothing : 초기값 설정
     - [Function] window_search  : 차선 탐지
-    - [Function] meter_per_pixel: 픽셀 당 가로, 세로 거리 반환
+    - [Function] meter_per_pixel: 픽셀 당 가로, 세로 거리 반환  
+    - [Function] calc_curve     : 왼쪽과 오른쪽 차선의 곡률 값을 반환
     - [Function] img_CB
 '''
 import rospy
@@ -22,10 +23,10 @@ import os
 import matplotlib.pyplot as plt
 
 
-class Meter_Per_Pixel:
+class Calc_Curvature:
     def __init__(self):
         self.bridge = CvBridge()
-        rospy.init_node("meter_per_pixel_node")
+        rospy.init_node("calc_curvature_node")
         self.pub = rospy.Publisher("/sliding_windows/compressed", CompressedImage, queue_size=10)
         rospy.Subscriber("/camera/rgb/image_raw/compressed", CompressedImage, self.img_CB)
         self.nothing_flag = False
@@ -54,12 +55,9 @@ class Meter_Per_Pixel:
         return blend_color
 
     def img_warp(self, img):
-        # shape of img
         self.img_x, self.img_y = img.shape[1], img.shape[0]
         # print(f'self.img_x:{self.img_x}, self.img_y:{self.img_y}')
-        # img_size = [640, 480]
 
-        # ROI
         img_size = [640, 480]
         # ROI
         src_side_offset = [0, 240]
@@ -72,9 +70,9 @@ class Meter_Per_Pixel:
                 [639, 479],
             ]
         )
-        # 아래 2 개 점 기준으로 dst 영역을 설정
+        # 아래 2 개 점 기준으로 dst 영역을 설정합니다.
         dst_offset = [round(self.img_x * 0.125), 0]
-        # offset x 값이 작아질 수록 dst box width 증가
+        # offset x 값이 작아질 수록 dst box width 증가합니다.
         dst = np.float32(
             [
                 [dst_offset[0], self.img_y],
@@ -88,20 +86,6 @@ class Meter_Per_Pixel:
         matrix_inv = cv2.getPerspectiveTransform(dst, src)
         warp_img = cv2.warpPerspective(img, matrix, [self.img_x, self.img_y])
         return warp_img
-
-    def img_binary(self, blend_line):
-        bin = cv2.cvtColor(blend_line, cv2.COLOR_BGR2GRAY)
-        binary_line = np.zeros_like(bin)
-        binary_line[bin != 0] = 1
-        return binary_line
-
-    def detect_nothing(self):
-        self.nothing_left_x_base = round(self.img_x * 0.140625)
-        self.nothing_right_x_base = self.img_x - round(self.img_x * 0.140625)
-
-        self.nothing_pixel_left_x = np.zeros(self.nwindows) + round(self.img_x * 0.140625)
-        self.nothing_pixel_right_x = np.zeros(self.nwindows) + self.img_x - round(self.img_x * 0.140625)
-        self.nothing_pixel_y = [round(self.window_height / 2) * index for index in range(0, self.nwindows)]
 
     def img_binary(self, blend_line):
         bin = cv2.cvtColor(blend_line, cv2.COLOR_BGR2GRAY)
@@ -264,7 +248,34 @@ class Meter_Per_Pixel:
         meter_y = np.sum((world_warp[0] - world_warp[1]) ** 2)
         meter_per_pix_x = meter_x / self.img_x
         meter_per_pix_y = meter_y / self.img_y
-        return meter_per_pix_x, meter_per_pix_y # 픽셀 당 가로, 세로 거리 반환
+        return meter_per_pix_x, meter_per_pix_y
+
+    def calc_curve(self, left_x, left_y, right_x, right_y):
+        # WeGo simulation상의 차선의 간격(enu 좌표)을 통해 simulation상의 곡률을 구하는 함수입니다.
+        # # Args:
+        # left_x (np.array): 왼쪽 차선 pixel x값
+        # left_y (np.array): 왼쪽 차선 pixel y값
+        # right_x (np.array): 오른쪽 차선 pixel x값
+        # right_y (np.array): 오른쪽 차선 pixel y값
+        #
+        # Returns:
+        # float: 왼쪽, 오른쪽 차선의 곡률입니다.
+
+        # 640p video/image, so last (lowest on screen) y index is 639
+        y_eval = self.img_x - 1
+
+        # Define conversions in x and y from pixels to meter
+        # meter per pixel in each x, y dimension
+        meter_per_pix_x, meter_per_pix_y = self.meter_per_pixel()
+
+        # Fit new polynomials to x,y in world space(meterinate)
+        left_fit_cr = np.polyfit(left_y * meter_per_pix_y, left_x * meter_per_pix_x, 2)
+        right_fit_cr = np.polyfit(right_y * meter_per_pix_y, right_x * meter_per_pix_x, 2)
+        # Calculate the new radius of curvature: 곡률 계산 수식 적용
+        left_curve_radius = ((1 + (2 * left_fit_cr[0] * y_eval * meter_per_pix_y + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit_cr[0])
+        right_curve_radius = ((1 + (2 * right_fit_cr[0] * y_eval * meter_per_pix_y + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
+
+        return left_curve_radius, right_curve_radius # 왼쪽과 오른쪽 차선의 곡률 값을 반환
 
     def img_CB(self, data):
         img = self.bridge.compressed_imgmsg_to_cv2(data)
@@ -287,6 +298,7 @@ class Meter_Per_Pixel:
             right_y,
         ) = self.window_search(binary_img)
         meter_per_pix_x, meter_per_pix_y = self.meter_per_pixel()
+        left_curve_radius, right_curve_radius = self.calc_curve(left_x, left_y, right_x, right_y)
 
         os.system("clear")
         print(f"------------------------------")
@@ -299,6 +311,8 @@ class Meter_Per_Pixel:
         print(f"right_y : {right_y}")
         print(f"meter_per_pix_x : {meter_per_pix_x}")
         print(f"meter_per_pix_y : {meter_per_pix_y}")
+        print(f"left_curve_radius : {left_curve_radius}")
+        print(f"right_curve_radius : {right_curve_radius}")
         print(f"------------------------------")
         sliding_window_msg = self.bridge.cv2_to_compressed_imgmsg(sliding_window_img)
         self.pub.publish(sliding_window_msg)
@@ -310,5 +324,5 @@ class Meter_Per_Pixel:
 
 
 if __name__ == "__main__":
-    meter_per_pixel = Meter_Per_Pixel()
+    calc_curvature = Calc_Curvature()
     rospy.spin()
