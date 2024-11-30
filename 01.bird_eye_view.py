@@ -4,7 +4,9 @@
 흐름      : 구독 → 이미지 디코딩 → Bird-eye view 변환 → 이미지 인코딩 → 게시
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /bird_eye/compressed
-[Function] img_warp : Bird-eye view 변환된 이미지 반환
+[Class] Bird_Eye_View
+    - [Function] img_warp : Bird-eye view 변환된 이미지 반환
+    - [Function] img_CB
 '''
 import rospy
 from sensor_msgs.msg import CompressedImage

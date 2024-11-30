@@ -4,8 +4,10 @@
 흐름      : 구독 → Bird-eye View 변환 → 흰색 선 추출 → 게시
 [Topic] Subscribe : /camera/rgb/image_raw/compressed (콜백 함수: img_CB)
 [Topic] Publish   : /white/compressed
-[Function] img_warp     : Bird-eye view 변환된 이미지 반환
-[Function] detect_color : 추출된 흰색 선 이미지 반환
+[Class] White_line_Detect
+    - [Function] img_warp     : Bird-eye view 변환된 이미지 반환
+    - [Function] detect_color : 추출된 흰색 선 이미지 반환
+    - [Function] img_CB
 '''
 import rospy
 from sensor_msgs.msg import CompressedImage, Image
